@@ -18,11 +18,16 @@ def main():
         choices=list(options.MediaType),
         default=options.MediaType.STATIC,
     )
-    # parser.add_argument()
+    parser.add_argument(
+        "-c",
+        "--colored",
+        type=bool,
+        default=False,
+    )
 
     args = parser.parse_args()
 
-    image_converter.image_to_ascii(args.path)
+    image_converter.image_to_ascii(args.path, args.colored)
 
 
 if __name__ == "__main__":

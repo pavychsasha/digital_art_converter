@@ -2,5 +2,11 @@ import enum
 
 
 class MediaType(enum.Enum):
-    STATIC = 1
-    WEBCAM = 2
+    STATIC = "static"
+    WEBCAM = "webcam"
+
+
+class OutputType(enum.Enum):
+    CONSOLE = "console"
+    FILE = "file"
+    ALL = "all"

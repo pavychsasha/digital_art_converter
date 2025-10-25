@@ -2,6 +2,7 @@ import argparse
 import options
 
 import image_converter
+import validators
 
 
 def main():
@@ -15,7 +16,7 @@ def main():
         "-t",
         "--type",
         type=options.MediaType,
-        choices=list(options.MediaType),
+        choices=[mt.value for mt in options.MediaType],
         default=options.MediaType.STATIC,
     )
     parser.add_argument(
@@ -25,9 +26,23 @@ def main():
         default=False,
     )
 
+    parser.add_argument(
+        "-o",
+        "--output-path",
+        type=str,
+        help="TXT file you want to store the ",
+    )
+
     args = parser.parse_args()
 
-    image_converter.image_to_ascii(args.path, args.colored)
+    validators.ArgsValidator.validate_parameters(args)
+
+    image = image_converter.ImageConverter(
+        image_path=args.path,
+        colored=args.colored,
+        output_path=args.output_path,
+    )
+    image.print_ascii_image()
 
 
 if __name__ == "__main__":

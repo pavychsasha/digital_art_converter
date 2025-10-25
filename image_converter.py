@@ -4,94 +4,142 @@ import cv2
 import numpy as np
 
 import constants
+import validators
+import options
 
 
-def get_image(path, colored=False):
-    type = 1 if colored else 0
-    return cv2.imread(path, type)
+class ImageConverter:
+    def __init__(
+        self,
+        image_path: str,
+        colored: bool = False,
+        threshold: int | None = None,
+        ascii_font_aspect: float = 2.0,
+        output_type: options.OutputType = options.OutputType.CONSOLE,
+        output_path: str | None = None,
+    ):
+        self.image_path = image_path
+        self.colored = colored
+        self.ascii_font_aspect = ascii_font_aspect
+        self.output_type = output_type
+        self.output_path = output_path
 
+        self._threshold = threshold
+        self._image = None
+        self._grey_image = None
+        self._ascii_image = None
 
-def resize_image(
-    image: np.ndarray,
-    aspect: float = 2.0,
-) -> np.ndarray:
-    """
-    Fit to terminal width and compensate for character cell aspect ratio.
-    aspect = char_height / char_width (≈2.0 for most fonts)
-    """
-    h, w = image.shape[:2]
-    # leave 1 col to avoid wrap
-    terminal_size = shutil.get_terminal_size()
-    cols = terminal_size.columns
-    lines = terminal_size.lines
+        self.resize_image()
 
-    new_w = cols
-    new_h = max(1, int(round(h / w * new_w / aspect)))
+    @property
+    def image(self):
+        if self._image is None:
+            img_type = 1 if self.colored else 0
+            try:
+                self._image = cv2.imread(self.image_path, img_type)
+                validators.ArgsValidator.validate_image(self._image)
+            except Exception as exc:
+                raise Exception(f"Error during image retrieval: {exc}")
+        return self._image
 
-    if new_h > lines:
-        scale = lines / new_h
-        new_w = max(1, int(round(new_w * scale)))
-        new_h = max(1, int(round(new_h * scale)))
+    @property
+    def grey_img(self):
+        if self._grey_image is None:
+            if self.colored:
+                self._grey_image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
+            else:
+                self._grey_image = self.image
 
-    scale_w = new_w / w
-    interp = cv2.INTER_AREA if scale_w < 1 else cv2.INTER_CUBIC
+        return self._grey_image
 
-    return cv2.resize(image, (new_w, new_h), interpolation=interp)
+    @property
+    def threshold(self):
+        if not self._threshold:
+            self._threshold = np.percentile(
+                self.grey_img, constants.IMAGE_THRESHOLD_PERCENTILE
+            )
+        return self._threshold
 
+    @property
+    def ascii_image(self):
+        if not self._ascii_image:
+            self._ascii_image = self._get_ascii_image()
+        return self._ascii_image
 
-def _convert_grey_img_to_ascii(image):
-    threshold = np.percentile(image, 92)
-    image = np.where(image > threshold, 255, image)
+    def _convert_colored_img_to_ascii(self):
+        image = np.where(self.image > self.threshold, 255, self.image)
 
-    idx = (image.astype(np.float32) / 255.0) * (len(constants.GRAYSCALE) - 1)
-    idx = idx.astype(np.int32)
-    lut = np.frombuffer(constants.GRAYSCALE.encode(), dtype=np.uint8)
+        converted_grey_img = self._convert_grey_img_to_ascii()
+        res = []
+        for row_idx, row in enumerate(converted_grey_img):
+            line = ""
+            for col_idx, pixel in enumerate(row):
+                b, g, r = image[row_idx, col_idx]
 
-    res = []
-    for row in idx:
-        line = bytes(lut[row]).decode("ascii")
-        res.append(line)
-    return res
+                color_code = f"\033[38;2;{r};{g};{b}m"
+                line += f"{color_code}{pixel}"
+            line += "\033[0m"
+            res.append(line)
+        return res
 
+    def _convert_grey_img_to_ascii(self):
+        image = np.where(self.grey_img > self.threshold, 255, self.grey_img)
 
-def _convert_colored_img_to_ascii(image):
-    grey_img = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    threshold = np.percentile(grey_img, constants.IMAGE_THRESHOLD_PERCENTILE)
-    image = np.where(image > threshold, 255, image)
+        idx = (image.astype(np.float32) / 255.0) * (len(constants.GRAYSCALE) - 1)
+        idx = idx.astype(np.int32)
+        lut = np.frombuffer(constants.GRAYSCALE.encode(), dtype=np.uint8)
 
-    converted_grey_img = _convert_grey_img_to_ascii(grey_img)
-    res = []
-    for row_idx, row in enumerate(converted_grey_img):
-        line = ""
-        for col_idx, pixel in enumerate(row):
-            b, g, r = image[row_idx, col_idx]
+        res = []
+        for row in idx:
+            line = bytes(lut[row]).decode("ascii")
+            res.append(line)
+        return res
 
-            color_code = f"\033[38;2;{r};{g};{b}m"
-            line += f"{color_code}{pixel}"
-        line += "\033[0m"
-        res.append(line)
-    return res
+    def _get_ascii_image(
+        self,
+    ) -> np.ndarray.ndarray:
+        if self.colored:
+            return self._convert_colored_img_to_ascii()
+        return self._convert_grey_img_to_ascii()
 
+    def get_target_size(self):
+        """
+        Fit to terminal width and compensate for character cell aspect ratio.
+        aspect = char_height / char_width (≈2.0 for most fonts)
+        """
 
-def convert_image_to_ascii(
-    image: np.ndarray.ndarray,
-    colored: bool = False,
-) -> np.ndarray.ndarray:
-    if colored:
-        return _convert_colored_img_to_ascii(image)
-    return _convert_grey_img_to_ascii(image)
+        h, w = new_h, new_w = self.image.shape[:2]
 
+        if self.output_type == options.OutputType.CONSOLE:
+            terminal_size = shutil.get_terminal_size()
+            cols = terminal_size.columns
+            # leave 1 col to avoid wrap
+            lines = terminal_size.lines - 1
 
-def print_ascii_image(ascii_image, colored=False):
-    for line in ascii_image:
-        print(line)
+            new_w = cols
+            new_h = max(1, int(round(h / w * new_w / self.ascii_font_aspect)))
 
+            if new_h > lines:
+                scale = lines / new_h
+                new_w = max(1, int(round(new_w * scale)))
+                new_h = max(1, int(round(new_h * scale)))
 
-def image_to_ascii(image_path: str, colored: bool = False) -> None:
-    image = get_image(image_path, colored)
+        return new_w, new_h
 
-    resized_image = resize_image(image)
-    res = convert_image_to_ascii(resized_image, colored)
-    print_ascii_image(
-        res,
-    )
+    def resize_image(self):
+        new_w, new_h = self.get_target_size()
+
+        self._image = cv2.resize(self.image, (new_w, new_h))
+        self._grey_image = None
+
+    def print_ascii_image(self):
+        for line in self.ascii_image:
+            print(line)
+
+    def export_ascii_to_file(self, image, outptput_path: str):
+        h, w = image.shape[:2]
+
+        print("Exporting image to path", outptput_path)
+        with open(outptput_path, "w+") as file:
+            for line in image:
+                file.write(line + "\n")

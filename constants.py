@@ -1,5 +1,5 @@
 GRAYSCALE = r"@%#*+=-:.  "
-IMAGE_THRESHOLD_PERCENTILE = 92
+IMAGE_THRESHOLD_PERCENTILE = 95
 ALLOWED_IMAGE_FORMAT = {
     "bmp",
     "dib",
@@ -15,5 +15,14 @@ ALLOWED_IMAGE_FORMAT = {
     "ras",
     "tiff",
     "tif",
+    "webp",
 }
+
+ALLOWED_VIDEO_FORMAT = {
+    "avi",
+    "mp4",
+    "mkv",
+    "webm"
+}
+
 ALLOWED_OUTPUT_FORMAT = {"txt"}

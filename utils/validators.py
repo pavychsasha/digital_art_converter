@@ -15,9 +15,10 @@ class ArgsValidator:
         if not os.path.exists(absolute_path):
             raise ValueError("Path does not exists")
 
-        suffix = Path(absolute_path).suffix
-        if suffix[1:] not in constants.ALLOWED_IMAGE_FORMAT:
-            supported_types_str = ", ".join(constants.ALLOWED_IMAGE_FORMAT)
+        suffix = Path(absolute_path).suffix[1:]
+        allowed_formats = constants.ALLOWED_IMAGE_FORMAT | constants.ALLOWED_VIDEO_FORMAT
+        if suffix not in allowed_formats :
+            supported_types_str = ", ".join(allowed_formats)
             raise ValueError(
                 f"Incorrect media file type, supported types: {supported_types_str}",
             )
@@ -37,4 +38,5 @@ class ArgsValidator:
     @classmethod
     def validate_parameters(cls, args):
         cls.validate_media_input(args.path)
+
         cls.validate_output_path(args.output_path)

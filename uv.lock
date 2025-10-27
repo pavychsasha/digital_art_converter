@@ -24,6 +24,9 @@ requires-dist = [
     { name = "rich", specifier = ">=14.2.0" },
 ]
 
+[package.metadata.requires-dev]
+dev = []
+
 [[package]]
 name = "markdown-it-py"
 version = "4.0.0"

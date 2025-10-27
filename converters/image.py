@@ -4,14 +4,16 @@ import cv2
 import numpy as np
 
 import constants
-import validators
 import options
+
+import utils.validators
 
 
 class ImageConverter:
     def __init__(
         self,
-        image_path: str,
+        image_path: str | None = None,
+        image: np.ndarray | None = None,
         colored: bool = False,
         threshold: int | None = None,
         ascii_font_aspect: float = 2.0,
@@ -21,13 +23,15 @@ class ImageConverter:
         self.image_path = image_path
         self.colored = colored
         self.ascii_font_aspect = ascii_font_aspect
+
         self.output_type = output_type
         self.output_path = output_path
 
         self._threshold = threshold
-        self._image = None
+        self._image = image
         self._grey_image = None
         self._ascii_image = None
+        self._padding = 0
 
         self.resize_image()
 
@@ -37,7 +41,7 @@ class ImageConverter:
             img_type = 1 if self.colored else 0
             try:
                 self._image = cv2.imread(self.image_path, img_type)
-                validators.ArgsValidator.validate_image(self._image)
+                utils.validators.ArgsValidator.validate_image(self._image)
             except Exception as exc:
                 raise Exception(f"Error during image retrieval: {exc}")
         return self._image
@@ -124,6 +128,9 @@ class ImageConverter:
                 new_w = max(1, int(round(new_w * scale)))
                 new_h = max(1, int(round(new_h * scale)))
 
+            if new_w < cols:
+                self._padding = (cols - new_w) // 2
+
         return new_w, new_h
 
     def resize_image(self):
@@ -132,14 +139,16 @@ class ImageConverter:
         self._image = cv2.resize(self.image, (new_w, new_h))
         self._grey_image = None
 
+    def print_ascii_image_from_file(file_path):
+        with open(file_path, "r") as file:
+            print(file.read())
+
     def print_ascii_image(self):
         for line in self.ascii_image:
             print(line)
 
-    def export_ascii_to_file(self, image, outptput_path: str):
-        h, w = image.shape[:2]
+    def export_ascii_to_file(self, outptput_path: str):
 
-        print("Exporting image to path", outptput_path)
         with open(outptput_path, "w+") as file:
-            for line in image:
-                file.write(line + "\n")
+            for line in self.ascii_image:
+                file.write(" "*self._padding + line + "\n")

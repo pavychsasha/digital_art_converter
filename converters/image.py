@@ -128,7 +128,8 @@ class ImageConverter:
                 new_w = max(1, int(round(new_w * scale)))
                 new_h = max(1, int(round(new_h * scale)))
 
-            if new_w < cols:
+            if new_w < cols and self.output_type == options.OutputType.CONSOLE:
+                # used for centralizing a video
                 self._padding = (cols - new_w) // 2
 
         return new_w, new_h

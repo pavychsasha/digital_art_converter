@@ -1,6 +1,7 @@
 import utils.argparser
 import utils.application
 
+
 def main():
     args = utils.argparser.initialzie_argparser()
     app = utils.application.Application(
@@ -11,7 +12,7 @@ def main():
         output_type=args.output_type,
     )
     app.run()
-    
+
 
 if __name__ == "__main__":
     main()

@@ -1,13 +1,13 @@
 import os
 import sys
+import tempfile
+
 import shutil
 import subprocess
 import threading
 
 import time
 import cv2
-
-import tempfile
 
 from moviepy import VideoFileClip
 
@@ -40,13 +40,7 @@ class VideoConverter:
         self.cap = None
         self.audio_segment = None
         self.frames_number = 0
-        self._temp_dir = None
-
-    @property
-    def temp_dir(self):
-        if not self._temp_dir:
-            self._temp_dir = tempfile.mkdtemp()
-        return self._temp_dir
+        self.temp_dir = tempfile.mkdtemp()
 
     def _clear_terminal(self):
         if os.name == 'nt':  # 'nt' refers to Windows
@@ -64,6 +58,7 @@ class VideoConverter:
         print("Extracted audio")
 
     def convert_video_to_ascii(self):
+        print("Converting video to ascii")
         self.cap = cv2.VideoCapture(self.path)
 
         if not self.cap.isOpened():
@@ -115,10 +110,11 @@ class VideoConverter:
           for i in range(self.frames_number)
         ]
 
+        cursor_home = "\033[H"
+        clear_rest = "\033[0J"
         hide_cursor = "\033[?25l"
         show_cursor = "\033[?25h"
-        clear_screen = "\033[H\033[J"
-
+        self._clear_terminal()
         sys.stdout.write(hide_cursor)
         sys.stdout.flush()
 
@@ -128,8 +124,9 @@ class VideoConverter:
 
         try:
             for idx, frame in enumerate(frames):
-                sys.stdout.write(clear_screen)
+                sys.stdout.write(cursor_home)
                 sys.stdout.write(frame)
+                sys.stdout.write(clear_rest)
                 sys.stdout.flush()
 
                 if frame_duration:
@@ -138,7 +135,9 @@ class VideoConverter:
                 if sleep_for > 0:
                     time.sleep(sleep_for)
         finally:
-            audio_thread.join()
-            shutil.rmtree(self.temp_dir)
+            if audio_thread is not None:
+                audio_thread.join()
+            self._clear_terminal()
             sys.stdout.write(show_cursor)
             sys.stdout.flush()
+            shutil.rmtree(self.temp_dir)

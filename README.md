@@ -5,6 +5,8 @@
 Digital Art Converter renders visual media as text-based art directly in your terminal. Static images are resized to your console, quantized against a luminance threshold, and mapped to ASCII characters (with optional ANSI color). Videos are decoded frame-by-frame with OpenCV,
 converted using the same ASCII pipeline, and streamed back at the source FPS while MoviePy extracts and plays the original audio in a background thread. Basic CLI validation ensures the media path exists, the format is supported, and accidental overwrites are confirmed.
 
+[![Watch the video](https://img.youtube.com/vi/cYDkAKYTWk0/maxresdefault.jpg)](https://youtu.be/cYDkAKYTWk0)
+
 ## Installation Instructions
 
 1. Install Python ≥ 3.13

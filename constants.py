@@ -1,4 +1,4 @@
-GRAYSCALE = r"@%#*+=-:.  "
+GRAYSCALE = r"@%#*+=-:. "
 IMAGE_THRESHOLD_PERCENTILE = 95
 ALLOWED_IMAGE_FORMAT = {
     "bmp",

@@ -1,6 +1,10 @@
 import os
 import sys
 import tempfile
+import platform
+import atexit
+import signal
+import functools
 
 import shutil
 import subprocess
@@ -18,8 +22,8 @@ from pathlib import Path
 import options
 
 
-
 class VideoConverter:
+    audio_file_name = "audio.mp3"
     def __init__(
         self,
         path: str,
@@ -40,7 +44,9 @@ class VideoConverter:
         self.cap = None
         self.audio_segment = None
         self.frames_number = 0
+
         self.temp_dir = tempfile.mkdtemp()
+        self.register_cleanup()
 
     def _clear_terminal(self):
         if os.name == 'nt':  # 'nt' refers to Windows
@@ -48,14 +54,49 @@ class VideoConverter:
         else:  # 'posix' refers to Unix-like systems (Linux, macOS)
             os.system('clear')
 
+    def cleanup(self, *args, **kwargs):
+        if self.temp_dir and Path(self.temp_dir).exists():
+            shutil.rmtree(self.temp_dir, ignore_errors=True)
+        sys.exit(0)
+
+    def register_cleanup(self):
+        atexit.register(self.cleanup)
+        for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+            signal.signal(sig, functools.partial(self.cleanup))
+
     def extract_audio(self):
         video_clip = VideoFileClip(self.path)
         audio_clip = video_clip.audio
         if audio_clip:
-            audio_clip.write_audiofile(f"{self.temp_dir}/audio.mp3")
+            audio_clip.write_audiofile(
+                os.path.join(
+                    self.temp_dir, self.audio_file_name
+                )
+            )
             audio_clip.close()
         video_clip.close()
         print("Extracted audio")
+
+    def play_audio(self):
+        if os.path.exists(os.path.join(self.temp_dir, self.audio_file_name)):
+            platform_name = platform.system()
+            command = ""
+            if platform_name == "Windows":
+                command = "start"
+            elif platform_name == "Linux":
+                command = "paplay"
+            elif platform_name == "Darwin":
+                command = "afplay"
+
+            try:
+                subprocess.call([
+                    command,
+                    os.path.join(
+                        self.temp_dir, self.audio_file_name)
+                    ]
+                )
+            except Exception as ex:
+                print(f"Error after trying to play an audio: {ex}")
 
     def convert_video_to_ascii(self):
         print("Converting video to ascii")
@@ -95,10 +136,6 @@ class VideoConverter:
             i += 1
 
         self.frames_number = i
-
-    def play_audio(self):
-        if os.path.exists(os.path.join(self.temp_dir, "audio.mp3")):
-            subprocess.call(["afplay", f"{self.temp_dir}/audio.mp3"])
 
     def print_video_as_ascii(self):
         if not self.cap:
@@ -140,4 +177,3 @@ class VideoConverter:
             self._clear_terminal()
             sys.stdout.write(show_cursor)
             sys.stdout.flush()
-            shutil.rmtree(self.temp_dir)

@@ -31,7 +31,6 @@ class Application:
 
     def run(self):
         if self.is_image:
-                    
             image = converters.image.ImageConverter(
                 image_path=self.path,
                 colored=self.colored,
@@ -49,4 +48,4 @@ class Application:
                 output_type=self.output_type,
             )
             video.print_video_as_ascii()
-
+            video.cleanup()

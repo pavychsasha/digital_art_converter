@@ -101,7 +101,7 @@ class ImageConverter:
 
     def _get_ascii_image(
         self,
-    ) -> np.ndarray.ndarray:
+    ) -> np.ndarray:
         if self.colored:
             return self._convert_colored_img_to_ascii()
         return self._convert_grey_img_to_ascii()

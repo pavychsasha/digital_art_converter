@@ -1,0 +1,179 @@
+import os
+import sys
+import tempfile
+import platform
+import atexit
+import signal
+import functools
+
+import shutil
+import subprocess
+import threading
+
+import time
+import cv2
+
+from moviepy import VideoFileClip
+
+from converters import image
+from pathlib import Path
+
+
+import options
+
+
+class VideoConverter:
+    audio_file_name = "audio.mp3"
+    def __init__(
+        self,
+        path: str,
+        colored: bool = False,
+        threshold: int | None = None,
+        ascii_font_aspect: float = 2.0,
+        output_type: options.OutputType = options.OutputType.CONSOLE,
+        output_path: str | None = None,
+    ):
+        self.path = path
+        self.colored = colored
+        self.ascii_font_aspect = ascii_font_aspect
+        self.output_type = output_type
+        self.output_path = output_path
+        self.threshold = threshold
+
+        self.fps = None
+        self.cap = None
+        self.audio_segment = None
+        self.frames_number = 0
+
+        self.temp_dir = tempfile.mkdtemp()
+        self.register_cleanup()
+
+    def _clear_terminal(self):
+        if os.name == 'nt':  # 'nt' refers to Windows
+            os.system('cls')
+        else:  # 'posix' refers to Unix-like systems (Linux, macOS)
+            os.system('clear')
+
+    def cleanup(self, *args, **kwargs):
+        if self.temp_dir and Path(self.temp_dir).exists():
+            shutil.rmtree(self.temp_dir, ignore_errors=True)
+        sys.exit(0)
+
+    def register_cleanup(self):
+        atexit.register(self.cleanup)
+        for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+            signal.signal(sig, functools.partial(self.cleanup))
+
+    def extract_audio(self):
+        video_clip = VideoFileClip(self.path)
+        audio_clip = video_clip.audio
+        if audio_clip:
+            audio_clip.write_audiofile(
+                os.path.join(
+                    self.temp_dir, self.audio_file_name
+                )
+            )
+            audio_clip.close()
+        video_clip.close()
+        print("Extracted audio")
+
+    def play_audio(self):
+        if os.path.exists(os.path.join(self.temp_dir, self.audio_file_name)):
+            platform_name = platform.system()
+            command = ""
+            if platform_name == "Windows":
+                command = "start"
+            elif platform_name == "Linux":
+                command = "paplay"
+            elif platform_name == "Darwin":
+                command = "afplay"
+
+            try:
+                subprocess.call([
+                    command,
+                    os.path.join(
+                        self.temp_dir, self.audio_file_name)
+                    ]
+                )
+            except Exception as ex:
+                print(f"Error after trying to play an audio: {ex}")
+
+    def convert_video_to_ascii(self):
+        print("Converting video to ascii")
+        self.cap = cv2.VideoCapture(self.path)
+
+        if not self.cap.isOpened():
+            print("Error, could not open the file")
+            return
+
+        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
+
+        i = 0
+        self.extract_audio()
+        while True:
+
+            ret, frame = self.cap.read()
+            if not ret:
+                break
+            if not self.colored:
+
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+            image_converter = image.ImageConverter(
+                image=frame,
+                colored=self.colored,
+                threshold=self.threshold,
+                ascii_font_aspect=self.ascii_font_aspect,
+                output_type=self.output_type,
+                output_path=self.output_path
+            )
+            if self.threshold is None:
+                self.threshold = image_converter.threshold
+
+            image_converter.export_ascii_to_file(
+                outptput_path=f"{self.temp_dir}/frame_{i}"
+            )
+            i += 1
+
+        self.frames_number = i
+
+    def print_video_as_ascii(self):
+        if not self.cap:
+            self.convert_video_to_ascii()
+
+        frame_duration = 1.0 / self.fps if self.fps else None
+        frames = [
+          Path(f"{self.temp_dir}/frame_{i}").read_text()
+          for i in range(self.frames_number)
+        ]
+
+        cursor_home = "\033[H"
+        clear_rest = "\033[0J"
+        hide_cursor = "\033[?25l"
+        show_cursor = "\033[?25h"
+        self._clear_terminal()
+        sys.stdout.write(hide_cursor)
+        sys.stdout.flush()
+
+        start_time = time.perf_counter()
+        audio_thread = threading.Thread(target=self.play_audio, daemon=True)
+        audio_thread.start()
+
+        try:
+            for idx, frame in enumerate(frames):
+                sys.stdout.write(cursor_home)
+                sys.stdout.write(frame)
+                sys.stdout.write(clear_rest)
+                sys.stdout.flush()
+
+                if frame_duration:
+                    next_deadline = start_time + (idx + 1) * frame_duration
+                    sleep_for = next_deadline - time.perf_counter()
+                if sleep_for > 0:
+                    time.sleep(sleep_for)
+        finally:
+            if audio_thread is not None:
+                audio_thread.join()
+            self._clear_terminal()
+            sys.stdout.write(show_cursor)
+            sys.stdout.flush()
